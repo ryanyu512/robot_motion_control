@@ -9,7 +9,8 @@ from robot import *
 from MPC import *
 
 def sim(sim_params, 
-        robot_params): 
+        robot_params,
+        MPC_params): 
 
     if not type(sim_params['y_target']) is list:
         print("== error == please ensure the y_target type is LIST")
@@ -50,14 +51,20 @@ def sim(sim_params,
     robot = Robot()
 
     #initialise MPC controller
-    mpc = MPC(dt)
+    mpc = MPC()
+    mpc.Q = MPC_params['Q']
+    mpc.S = MPC_params['S']
+    mpc.R = MPC_params['R']
+    mpc.h_windows = MPC_params['h_windows']
 
+    mpc.get_state_space(dt)
+    mpc.compute_aug_matrix()
     #initialise trajectory generator
     ref_gen = Ref_Gen()
 
     x_ref, y_ref, psi_ref = ref_gen.generate_ref_signal(0, end_t, dt, y_target)
 
-    mpc.compute_aug_matrix()
+
     for i in range(sim_steps + 1):
         c_aug_state = np.concatenate((copy.copy(c_state), u_control), axis = 0)
         

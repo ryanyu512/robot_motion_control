@@ -16,5 +16,11 @@ robot_params = {'N_out': 2,
                 'steering_ang_lim': np.math.pi/6.
                 }
 
+MPC_params = {'Q': np.array([[50., 0], [0, 1.]]),
+              'S': np.array([[50., 0], [0, 1.]]),
+              'R': np.array([[1.]]),
+              'h_windows': 20}
+
 sim(sim_params, 
-    robot_params)
+    robot_params,
+    MPC_params)

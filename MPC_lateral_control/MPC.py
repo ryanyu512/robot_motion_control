@@ -3,7 +3,7 @@ from robot_base import *
 
 class MPC(Robot_Base):
 
-    def __init__(self, dt, h_windows = 20, ):
+    def __init__(self, h_windows = 20, ):
         Robot_Base.__init__(self)
         #define prediction windows
         self.h_windows = h_windows
@@ -11,10 +11,8 @@ class MPC(Robot_Base):
                            [   0, 1]]) #weights for output i to i + h_windows - 1 
         self.S = np.array([[50., 0], 
                            [   0, 1]]) #weights for output h_windows
-        self.R = np.array([1.]) #weight for inputs
+        self.R = np.array([[1.]]) #weight for inputs
         self.R.shape = (1, 1)
-
-        self.get_state_space(dt)
 
     def get_state_space(self, dt):
 
