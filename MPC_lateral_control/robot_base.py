@@ -16,3 +16,5 @@ class Robot_Base():
         #forward velocity (assume constant)
         #this project is for lateral control
         self.x_dot = 20.
+        #define the radius of wheels
+        self.R_wheel = 0.5

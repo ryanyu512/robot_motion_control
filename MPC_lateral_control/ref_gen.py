@@ -5,12 +5,20 @@ class Ref_Gen(Robot_Base):
     def __init__(self):
         Robot_Base.__init__(self)
 
-    def generate_ref_signal(self, end_t, dt, y_target):
-        sim_t = np.arange(0, end_t + dt, dt)
+    def generate_ref_signal(self, cur_t, end_t, dt, y_target):
+        sim_t = np.arange(cur_t, end_t + dt, dt)
 
         #define x and y reference signal
         x_ref = np.linspace(0, self.x_dot*sim_t[-1], num = len(sim_t))
-        y_ref = y_target*np.ones(len(sim_t))
+
+        y_ref = []
+        trajectory_duration = int(len(sim_t)/len(y_target))
+        for i, yt in enumerate(y_target):
+            if i < len(y_target) - 1:
+                y_ref += [yt]*trajectory_duration
+            else:
+                y_ref += [yt]*(len(sim_t) - len(y_ref))
+        y_ref = np.array(y_ref)
 
         #define psi reference signal
         dx = x_ref[1:len(sim_t)] - x_ref[0:len(sim_t) - 1]
