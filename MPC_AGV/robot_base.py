@@ -15,9 +15,6 @@ class Robot_Base():
         self.Cf = 38000.
         #stiffness of rear tire
         self.Cr = 66000.
-        #forward velocity (assume constant)
-        #this project is for lateral control
-        self.x_dot = 20.
         #define the radius of wheels
         self.R_wheel = 0.5
         #define friction coefficient
