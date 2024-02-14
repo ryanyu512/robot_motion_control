@@ -1,7 +1,7 @@
 
 ![demo](https://github.com/ryanyu512/robot_motion_control/assets/19774686/c15878b1-62b7-4f33-b408-e82e15c219db)
 
-This project utilizes model predictive control (MPC) to achieve full control of an autonomous vehicle. In the above demo, a relatively complexed trajectory is shown in red line. Then, based on reference trajectories, model predictive control (MPC) tries to optimise control inputs based on MPC contraints.
+This project utilizes model predictive control (MPC) to achieve full control of an autonomous vehicle. Based on sliding windows of reference trajectories, model predictive control (MPC) respects and computes optimised control inputs. 
 
 1. demo.py: used for testing different parameters of MPC
 2. ref_gen.py: generate references for motion control
