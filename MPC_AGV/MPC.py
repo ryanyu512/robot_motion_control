@@ -77,21 +77,21 @@ class MPC(Robot_Base):
         Lr = self.Lr
         mu = self.mu
 
-        x_dot = c_state[0]
-        y_dot = c_state[1]
-        psi   = c_state[2]
+        x_dot = c_state[0,0]
+        y_dot = c_state[1,0]
+        psi   = c_state[2,0]
 
         a00 = -mu*g/x_dot
         a01 = Cf*np.sin(u1)/x_dot/m
         a03 = Cf*Lf*np.sin(u1)/x_dot/m + y_dot
 
-        a11 = -Cf*np.cos(u1)/x_dot/m - Cr/x_dot/m
-        a13 = -Cf*Lf*np.cos(u1)/x_dot/m + Cr*Lr/x_dot/m - x_dot
+        a11 = -(Cr + Cf*np.cos(u1))/x_dot/m
+        a13 = -(Cf*Lf*np.cos(u1) - Cr*Lr)/x_dot/m - x_dot
 
         a23 = 1.
 
-        a31 =  Cr*Lr/x_dot/Iz - Cf*Lf*np.cos(u1)/x_dot/Iz
-        a33 = -Cr*Lr**2/x_dot/Iz - Cf*Lf**2*np.cos(u1)/x_dot/Iz
+        a31 = -(Cf*Lf*np.cos(u1) - Cr*Lr)/x_dot/Iz
+        a33 = -(Cf*Lf**2*np.cos(u1) + Cr*Lr**2)/x_dot/Iz
 
         a40 =   np.cos(psi)
         a41 = - np.sin(psi)
@@ -190,21 +190,26 @@ class MPC(Robot_Base):
             G_input*[u_k+1;u_k+2;...u_k+N] = H_input
             H_input = [in_UB; in_LB]
         '''
-        u1_min = -np.pi/300.
-        u1_max =  np.pi/300.
-        u2_min = -0.1
-        u2_max =  0.1
+        du1_min = -np.pi/300.
+        du1_max =  np.pi/300.
+        du2_min = -0.1
+        du2_max =  0.1
 
         #define input lower and upper bounds
         in_LB = np.zeros((self.N_in*self.h_windows, 1))
         in_UB = np.zeros((self.N_in*self.h_windows, 1))
         for i in range(self.N_in*self.h_windows):
-            if i % self.N_in:
-                in_LB[i] = u2_min
-                in_UB[i] = u2_max
+            if i % self.N_in == 0:
+                in_LB[i] =-du1_min #flip the sign to satisfy qbsolver constraint
+                in_UB[i] = du1_max
             else:
-                in_LB[i] = u1_min
-                in_UB[i] = u1_max
+                in_LB[i] =-du2_min #flip the sign to satisfy qbsolver constraint
+                in_UB[i] = du2_max
+
+        '''
+            G_input*[u_k+1;u_k+2;...u_k+N] = H_input
+            H_input = [in_UB; in_LB]
+        '''
 
         G_input = np.concatenate(( np.eye(self.N_in*self.h_windows),
                                   -np.eye(self.N_in*self.h_windows)),
@@ -212,16 +217,12 @@ class MPC(Robot_Base):
         h_input = np.concatenate((in_UB, in_LB), axis = 0)
 
         #=== state constraints formulation ===#
-        '''
-            G_input*[u_k+1;u_k+2;...u_k+N] = H_input
-            H_input = [in_UB; in_LB]
-        '''
 
         #need to extract states from augmented states 
         #aug_state = [x_dot, y_dot, psi, psi_dot, X, Y, delta, acc_x]
         state_ext_mat = np.zeros((self.N_out, A_aug.shape[1]))
         state_ext_mat[0,0] = 1.
-        state_ext_mat[1,2] = 1.
+        state_ext_mat[1,1] = 1.
         state_ext_mat[2,6] = 1.
         state_ext_mat[3,7] = 1.
 
@@ -252,11 +253,12 @@ class MPC(Robot_Base):
         SC = np.matmul(self.S, C_aug)
         T_aug = np.zeros((QC.shape[0]*self.h_windows, QC.shape[1]*self.h_windows))
 
-         #=== compute augmented matrix  ===#
+        #=== compute augmented matrix  ===#
         A_prod = copy.copy(A_aug)
         aug_state_pred = copy.copy(c_aug_state)
         A_aug_preds = np.zeros((self.h_windows, A_aug.shape[0], A_aug.shape[1]))
         B_aug_preds = np.zeros((self.h_windows, B_aug.shape[0], B_aug.shape[1]))
+
         for i in range(self.h_windows):
 
             Q_aug[CtQC.shape[0]*i:CtQC.shape[0]*i+CtQC.shape[0],
@@ -270,7 +272,7 @@ class MPC(Robot_Base):
 
             #A_pow = [[A0], [A1*A0], ...]
             A_pow[A_aug.shape[0]*i:A_aug.shape[0]*i+A_aug.shape[0],
-                  0:A_aug.shape[1]] = A_prod
+                  0:A_aug.shape[1]] = copy.copy(A_prod)
             
             A_aug_preds[i, :, :] = copy.copy(A_aug)
             B_aug_preds[i, :, :] = copy.copy(B_aug)
@@ -282,16 +284,16 @@ class MPC(Robot_Base):
             y_dot_max = min([ 0.17*aug_state_pred[0, 0],  3.])
             delta_min = -np.math.pi/6.
             delta_max =  np.math.pi/6.
-            x_dot_dot_min = -4.
-            x_dot_dot_max =  1.
+            x_dot_dot_min = -1.
+            x_dot_dot_max =  4.
             '''
             F_yf = Cf*(u1 - y_dot/x_dot - psi_dot*Lf/x_dot)
             x_dot_dot = u2 + (- F_yf*np.sin(u1) - mu*m*g)/m + psi_dot*y_dot
             u2 = x_dot_dot - (- F_yf*np.sin(u1) - mu*m*g)/m - psi_dot*y_dot
             '''
             F_yf = Cf*(aug_state_pred[6,0] - aug_state_pred[1,0]/aug_state_pred[0,0] - aug_state_pred[3,0]*Lf/aug_state_pred[0,0])
-            a_min = x_dot_dot_min - (- F_yf*np.sin(aug_state_pred[6,0]) - mu*m*g)/m - aug_state_pred[3,0]*aug_state_pred[1,0]
-            a_max = x_dot_dot_max - (- F_yf*np.sin(aug_state_pred[6,0]) - mu*m*g)/m - aug_state_pred[3,0]*aug_state_pred[1,0]
+            a_min = x_dot_dot_min + (F_yf*np.sin(aug_state_pred[6,0]) + mu*m*g)/m - aug_state_pred[3,0]*aug_state_pred[1,0]
+            a_max = x_dot_dot_max + (F_yf*np.sin(aug_state_pred[6,0]) + mu*m*g)/m - aug_state_pred[3,0]*aug_state_pred[1,0]
 
             UB_states = np.array([x_dot_max, y_dot_max, delta_max, a_max])
             LB_states = np.array([x_dot_min, y_dot_min, delta_min, a_min])
@@ -306,7 +308,7 @@ class MPC(Robot_Base):
                 du2 = du[self.N_in*(i + 1) + self.N_in - 1, 0]
 
                 aug_state_pred = np.matmul(A_aug, aug_state_pred) + np.matmul(B_aug, np.array([[du1], [du2]]))
-                state_pred = aug_state_pred[0:6, 0]
+                state_pred = np.transpose([aug_state_pred[0:6, 0]])
                 delta_pred = aug_state_pred[6, 0]
                 acc_pred   = aug_state_pred[7, 0]
 
@@ -314,12 +316,6 @@ class MPC(Robot_Base):
                 A_aug, B_aug, C_aug, D_aug = self.get_aug_ABCD()
                 #A_pow = [[A0], [A1*A0], ...]
                 A_prod = np.matmul(A_aug, A_prod)
-
-
-            for j in range(self.h_windows):
-                if j <= i:
-                    C_AB[B_aug.shape[0]*i:B_aug.shape[0]*i+B_aug.shape[0],
-                         B_aug.shape[1]*j:B_aug.shape[1]*j+B_aug.shape[1]] = np.matmul(np.linalg.matrix_power(A_aug,((i+1)-(j+1))), B_aug)
 
         for i in range(self.h_windows): #for row
             for j in range(self.h_windows): #for col
@@ -345,8 +341,8 @@ class MPC(Robot_Base):
                         else:
                             AB_prod = np.matmul(AB_prod, B_aug_preds[k, :, :])
 
-                    C_AB[AB_prod.shape[0]*i:AB_prod.shape[0]*i + AB_prod.shape[0],
-                         AB_prod.shape[1]*j:AB_prod.shape[1]*j + AB_prod.shape[1]] = AB_prod
+                    C_AB[B_aug.shape[0]*i:B_aug.shape[0]*i + B_aug.shape[0],
+                         B_aug.shape[1]*j:B_aug.shape[1]*j + B_aug.shape[1]] = AB_prod
 
         #=== continue to formulate constraints ===#
         '''
@@ -369,7 +365,7 @@ class MPC(Robot_Base):
     
         h = np.concatenate((h_input, h_state), axis = 0)
         g = np.concatenate((G_input, G_state), axis = 0)
-        print(f"h: {h.shape}, g: {g.shape}")
+
         #H = (C_AB^t*Q_aug*C_AB + R_aug)
         H  = np.matmul(np.matmul(np.transpose(C_AB), Q_aug), C_AB) + R_aug
 
@@ -381,17 +377,15 @@ class MPC(Robot_Base):
         return H, Ft, C_AB, A_pow, g, h
 
     def compute_control_input(self, H, Ft, g, h, c_aug_state, aug_r):
-
-        #Ug = inv(H)*(-F*[x_k; Rg])
-        
         
         tmp = np.concatenate((np.transpose(c_aug_state), np.transpose(aug_r)), axis = 1)
-
         tmp = np.matmul(tmp, Ft)
+
         du = solve_qp(H, tmp, g, np.transpose(h), solver="cvxopt")
-        print(du)
+        du.shape = (len(du), 1)
+
         #out target control input = Ug[0, 0]
-        return du[0, 0]
+        return du
 
     #==== derivation section ====#
 

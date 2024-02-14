@@ -104,7 +104,7 @@ class Robot(Robot_Base):
             x_dot_dot = u2 + (- F_yf*np.sin(u1) - mu*m*g)/m + psi_dot*y_dot
             y_dot_dot = (F_yf*np.cos(u1) + F_yr)/m - psi_dot*x_dot
             psi_dot   = psi_dot
-            psi_dot_dot = (-F_yr*Lr + F_yf*np.cos(u1)*Lf)/Iz
+            psi_dot_dot = (F_yf*np.cos(u1)*Lf - F_yr*Lr)/Iz
             X_dot     = x_dot*np.cos(psi) - y_dot*np.sin(psi)
             Y_dot     = x_dot*np.sin(psi) + y_dot*np.cos(psi)
 
@@ -126,4 +126,4 @@ class Robot(Robot_Base):
 
         n_state.shape = (len(n_state), 1)
 
-        return n_state
+        return n_state, x_dot_dot, y_dot_dot, psi_dot_dot

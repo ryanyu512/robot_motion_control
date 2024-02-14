@@ -4,8 +4,10 @@ from robot_base import *
 class Ref_Gen(Robot_Base):
     def __init__(self):
         Robot_Base.__init__(self)
-
-
+        self.X_waypts = None
+        self.Y_waypts = None
+        self.X_dot_waypts = None
+        self.Y_dot_waypts = None
 
     def get_cubic_coeff(self, st, s_pos, s_vel, et, e_pos, e_vel):
 
@@ -29,96 +31,85 @@ class Ref_Gen(Robot_Base):
 
         return x
 
-    def get_cubic_path(self, 
-                       dt,
-                       s_t, e_t, 
-                       s_x,  s_y, 
-                       e_x,  e_y,
-                       s_vx, s_vy, 
-                       e_vx, e_vy):
+    def get_cubic_path(self, s_t, e_t, dt):
+
 
         sim_t = np.arange(s_t, e_t + dt, dt)
-        cx = self.get_cubic_coeff(s_t, s_x, s_vx, e_t, e_x, e_vx)
-        cy = self.get_cubic_coeff(s_t, s_y, s_vy, e_t, e_y, e_vy)
+        section_duration = sim_t[-1]/(len(self.X_waypts) - 1)
 
-        x_ref = cx[0] + cx[1]*sim_t + cx[2]*np.power(sim_t, 2) + cx[3]*np.power(sim_t, 3)
-        y_ref = cy[0] + cy[1]*sim_t + cy[2]*np.power(sim_t, 2) + cy[3]*np.power(sim_t, 3)
+        delay = np.zeros(len(self.X_waypts))
+        for i in range(1,len(delay)):
+            delay[i]= section_duration + (i - 1)*section_duration
 
-        #define psi reference signal
-        dx = x_ref[1:len(sim_t)] - x_ref[0:len(sim_t) - 1]
-        dy = y_ref[1:len(sim_t)] - y_ref[0:len(sim_t) - 1]
-
-        x_dot = dx/dt
-        y_dot = dy/dt
-
-        x_dot = np.concatenate(([x_dot[0]], x_dot), axis = 0)
-        y_dot = np.concatenate(([y_dot[0]], y_dot), axis = 0)
-
-        psi = np.zeros(len(sim_t))
-        psi_ref = np.zeros(len(sim_t))
-        psi[0] = np.arctan2(dy[0], dx[0])
-        psi[1:len(sim_t)] = np.arctan2(dy[0:len(sim_t)], dx[0:len(sim_t)])
-
-        psi_ref[0] = psi[0]
-        psi_diff   = psi[1:len(sim_t)] - psi[0:len(sim_t) - 1]
-
-        for i in range(1, len(sim_t)):
-            psi_d = psi_diff[i - 1]
-            psi_ref[i] = psi_ref[i - 1] + psi_d
-            #ensure np.deg2rad(-180.) <= psi_d <= np.deg2rad(180.) 
-            if psi_d > np.math.pi: 
-                psi_ref[i] -= 2 * np.math.pi
-            elif psi_d < -np.math.pi:
-                psi_ref[i] += 2 * np.math.pi
-
-        x_dot_body =  np.cos(psi_ref)*x_dot + np.sin(psi_ref)*y_dot
-        y_dot_body = -np.sin(psi_ref)*x_dot + np.cos(psi_ref)*y_dot
-
-        return x_dot_body, y_dot_body, x_ref, y_ref, psi_ref
-
-    def generate_ref_signal(self, cur_t, end_t, dt, y_target):
-        sim_t = np.arange(cur_t, end_t + dt, dt)
-
-        #define x and y reference signal
-        x_ref = np.linspace(0, self.x_dot*sim_t[-1], num = len(sim_t))
-
-        y_ref = []
-        trajectory_duration = int(len(sim_t)/len(y_target))
-        for i, yt in enumerate(y_target):
-            if i < len(y_target) - 1:
-                y_ref += [yt]*trajectory_duration
+        X=[]
+        Y=[]
+        for i in range(0,len(delay)-1):
+            # Extract the time elements for each section separately
+            if i != len(delay)-2:
+                t = sim_t[int(delay[i]/dt):int(delay[i+1]/dt)]
             else:
-                y_ref += [yt]*(len(sim_t) - len(y_ref))
-        y_ref = np.array(y_ref)
+                t = sim_t[int(delay[i]/dt):int(delay[i+1]/dt+1)]
 
-        #define psi reference signal
-        dx = x_ref[1:len(sim_t)] - x_ref[0:len(sim_t) - 1]
-        dy = y_ref[1:len(sim_t)] - y_ref[0:len(sim_t) - 1]
+            # Generate data for a subtrajectory
+            M=np.array([[1, t[0], t[0]**2,   t[0]**3],
+                        [1,t[-1],t[-1]**2,  t[-1]**3],
+                        [0,    1,  2*t[0], 3*t[0]**2],
+                        [0,    1, 2*t[-1],3*t[-1]**2]])
 
-        x_dot = dx/dt
-        y_dot = dy/dt
+            c_x=np.array([[self.X_waypts[i]], #start pos
+                          [self.X_waypts[i+1] - self.X_dot_waypts[i+1]*dt], #end pos
+                          [self.X_dot_waypts[i]], #start vel 
+                          [self.X_dot_waypts[i+1]]]) #end vel
+            c_y=np.array([[self.Y_waypts[i]],
+                          [self.Y_waypts[i+1] - self.Y_dot_waypts[i+1]*dt],
+                          [self.Y_dot_waypts[i]],
+                          [self.Y_dot_waypts[i+1]]])
 
-        x_dot = np.concatenate(([x_dot[0]], x_dot), axis = 0)
-        y_dot = np.concatenate(([y_dot[0]], y_dot), axis = 0)
 
-        psi = np.zeros(len(sim_t))
-        psi_ref = np.zeros(len(sim_t))
-        psi[0] = np.arctan2(dy[0], dx[0])
-        psi[1:len(sim_t)] = np.arctan2(dy[0:len(sim_t)], dx[0:len(sim_t)])
+            a_x = np.matmul(np.linalg.inv(M),c_x)
+            a_y = np.matmul(np.linalg.inv(M),c_y)
 
+            # Compute X and Y values
+            X_sub = a_x[0, 0]+a_x[1, 0]*t+a_x[2, 0]*t**2+a_x[3, 0]*t**3
+            Y_sub = a_y[0, 0]+a_y[1, 0]*t+a_y[2, 0]*t**2+a_y[3, 0]*t**3
+
+            # Concatenate X and Y values
+            X=np.concatenate([X, X_sub])
+            Y=np.concatenate([Y, Y_sub])
+
+            # Round the numbers to avoid numerical errors
+            X=np.round(X,8)
+            Y=np.round(Y,8)
+
+        # Vector of x and y changes per sample time
+        dX=X[1:len(X)]-X[0:len(X)-1]
+        dY=Y[1:len(Y)]-Y[0:len(Y)-1]
+
+        X_dot=dX/dt
+        Y_dot=dY/dt
+        X_dot=np.concatenate(([X_dot[0]],X_dot),axis=0)
+        Y_dot=np.concatenate(([Y_dot[0]],Y_dot),axis=0)
+
+        # Define the reference yaw angles
+        psi=np.zeros(len(X))
+        psi_ref = psi
+        psi[0]=np.arctan2(dY[0],dX[0])
+        psi[1:len(psi)]=np.arctan2(dY[0:len(dY)],dX[0:len(dX)])
+
+        # We want the yaw angle to keep track the amount of rotations
+        dpsi=psi[1:len(psi)]-psi[0:len(psi)-1]
         psi_ref[0] = psi[0]
-        psi_diff   = psi[1:len(sim_t)] - psi[0:len(sim_t) - 1]
+        for i in range(1,len(psi_ref)):
+            if dpsi[i-1]<-np.pi:
+                psi_ref[i] = psi_ref[i-1]+(dpsi[i-1]+2*np.pi)
+            elif dpsi[i-1]>np.pi:
+                psi_ref[i] = psi_ref[i-1]+(dpsi[i-1]-2*np.pi)
+            else:
+                psi_ref[i] = psi_ref[i-1]+dpsi[i-1]
 
-        for i in range(1, len(sim_t)):
-            psi_d = psi_diff[i - 1]
-            psi_ref[i] = psi_ref[i - 1] + psi_d
-            #ensure np.deg2rad(-180.) <= psi_d <= np.deg2rad(180.) 
-            if psi_d > np.math.pi: 
-                psi_ref[i] -= 2 * np.math.pi
-            elif psi_d < -np.math.pi:
-                psi_ref[i] += 2 * np.math.pi
 
-        x_dot_body =  np.cos(psi_ref)*x_dot + np.sin(psi_ref)*y_dot
-        y_dot_body = -np.sin(psi_ref)*x_dot + np.cos(psi_ref)*y_dot
+        x_dot_body= np.cos(psi_ref)*X_dot+np.sin(psi_ref)*Y_dot
+        y_dot_body=-np.sin(psi_ref)*X_dot+np.cos(psi_ref)*Y_dot
+        y_dot_body= np.round(y_dot_body)
 
-        return x_dot_body, y_dot_body, x_ref, y_ref, psi_ref
+        return x_dot_body, y_dot_body, psi_ref, X, Y            
