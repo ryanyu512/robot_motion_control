@@ -28,8 +28,24 @@ def sim(sim_params,
     #initialise robot 
     robot = Robot()
 
+    #initialise MPC controller
+    mpc = MPC()
+    mpc.Q = MPC_params['Q']
+    mpc.S = MPC_params['S']
+    mpc.R = MPC_params['R']
+    mpc.h_windows = MPC_params['h_windows']
+    mpc.du1_limit = MPC_params['du1_limit']
+    mpc.du2_limit = MPC_params['du2_limit']
+    mpc.delta_limit = MPC_params['delta_limit']
+    mpc.y_dot_min = MPC_params['y_dot_min']
+    mpc.y_dot_max = MPC_params['y_dot_max']
+    mpc.x_dot_min = MPC_params['x_dot_min']
+    mpc.x_dot_max = MPC_params['x_dot_max']
+    mpc.x_dot_dot_min = MPC_params['x_dot_dot_min']
+    mpc.x_dot_dot_max = MPC_params['x_dot_dot_max']
+
     #initialise delta control input
-    N_in = 2
+    N_in = mpc.N_in
     du = np.zeros((N_in*MPC_params['h_windows'], 1))
 
     #initialise trajectory generator
@@ -44,11 +60,9 @@ def sim(sim_params,
     init_x_dot = x_dot_body_ref[0]   #longitudinal velocity relative to body frame
     init_y_dot = y_dot_body_ref[0]   #lateral velocity relative to body frame
     init_psi   = psi_ref[0]          #angle at the MoC relative to global x
-    init_psi_dot = robot_params['init_psi_dot']   #angular velocity at the MoC relative to global x
+    init_psi_dot = 0.                #angular velocity at the MoC relative to global x
     init_X     = X_ref[0]            #initial x position relative to global frame
     init_Y     = Y_ref[0]            #initial y position relative to global frame
-
-    steering_ang_lim = robot_params['steering_ang_lim']
 
     #initialise current state
     c_state = np.array([[init_x_dot], 
@@ -59,13 +73,6 @@ def sim(sim_params,
                         [init_Y]])
     
     state_hist = [c_state]
-
-    #initialise MPC controller
-    mpc = MPC()
-    mpc.Q = MPC_params['Q']
-    mpc.S = MPC_params['S']
-    mpc.R = MPC_params['R']
-    mpc.h_windows = MPC_params['h_windows']
 
     x_dot_dot_hist = []
 
@@ -95,33 +102,17 @@ def sim(sim_params,
         H, Ft, C_AB, A_pow, g, h = mpc.compute_aug_constraints(c_aug_state, du, dt)
         du = mpc.compute_control_input(H, Ft, g, h, c_aug_state, aug_r)
         
-        
         u_control[0, 0] += du[0, 0]
         u_control[1, 0] += du[1, 0]
-
-        # print(i, u_control[0, 0], u_control[1, 0])
 
         #update current states
         c_state, x_dot_dot, y_dot_dot, psi_dot_dot = robot.update(c_state, u_control[0,0], u_control[1,0], dt)
         c_state.shape = (len(c_state), 1)
 
-        # if not -np.pi/300. <= du[0, 0] <= np.pi/300.:
-        #     print(f'=== violate du[0, 0]: {du[1, 0]}')
-
-        # if not -0.5 <= du[1, 0] <= 0.5:
-        #     print(f'=== violate du[1, 0]: {du[1, 0]}')
-        
-        # if not -1. <= x_dot_dot <= 4.:
-        #     print(f'=== violate x_dot_dot: {x_dot_dot}')
-
         #stort history
         u_hist.append(u_control)
         state_hist.append(copy.copy(c_state))
         x_dot_dot_hist.append(x_dot_dot)
-
-        # print(f'x_dot_dot: {x_dot_dot}, y_dot_dot: {y_dot_dot}, psi_dot_dot: {psi_dot_dot}')
-
-    # plt.plot(sim_t, x_dot_dot_hist)
 
     fig = plt.figure()
     ax  = plt.subplot(1, 1, 1)
@@ -144,6 +135,10 @@ def sim(sim_params,
         #plot 
         ax.plot(X_ref, Y_ref, '-r')
 
+        #plot robot history trajectory
+        robot_trajectory_hist = np.array([[sh[4, 0], sh[5, 0]] for sh in state_hist[0:i+1]])
+        ax.plot(robot_trajectory_hist[:, 0], 
+                robot_trajectory_hist[:, 1], '--g')
         #==== plot wheels ====#
 
         R = np.array([[np.cos(psi), -np.sin(psi)], 

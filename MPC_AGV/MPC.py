@@ -28,6 +28,9 @@ class MPC(Robot_Base):
         #input = [psi, acc_x]
         self.R = np.array([[100., 0], [0, 1.]]) #weight for inputs
 
+        self.du1_limit = None
+        self.du2_limit = None
+
     def get_state_space(self, c_state, u1, u2, dt):
 
         '''
@@ -190,10 +193,10 @@ class MPC(Robot_Base):
             G_input*[u_k+1;u_k+2;...u_k+N] = H_input
             H_input = [in_UB; in_LB]
         '''
-        du1_min = -np.pi/300.
-        du1_max =  np.pi/300.
-        du2_min = -0.1
-        du2_max =  0.1
+        du1_min = -self.du1_limit
+        du1_max =  self.du1_limit
+        du2_min = -self.du2_limit
+        du2_max =  self.du2_limit
 
         #define input lower and upper bounds
         in_LB = np.zeros((self.N_in*self.h_windows, 1))
@@ -278,14 +281,14 @@ class MPC(Robot_Base):
             B_aug_preds[i, :, :] = copy.copy(B_aug)
 
             #=== state constraints formulation ===#
-            x_dot_min = 1.
-            x_dot_max = 30.
-            y_dot_min = max([-0.17*aug_state_pred[0, 0], -3.])
-            y_dot_max = min([ 0.17*aug_state_pred[0, 0],  3.])
-            delta_min = -np.math.pi/6.
-            delta_max =  np.math.pi/6.
-            x_dot_dot_min = -1.
-            x_dot_dot_max =  4.
+            x_dot_min = self.x_dot_min
+            x_dot_max = self.x_dot_max
+            y_dot_min = max([-0.17*aug_state_pred[0, 0], self.y_dot_min])
+            y_dot_max = min([ 0.17*aug_state_pred[0, 0], self.y_dot_max])
+            delta_min = -self.delta_limit
+            delta_max =  self.delta_limit
+            x_dot_dot_min = self.x_dot_dot_min
+            x_dot_dot_max = self.x_dot_dot_max
             '''
             F_yf = Cf*(u1 - y_dot/x_dot - psi_dot*Lf/x_dot)
             x_dot_dot = u2 + (- F_yf*np.sin(u1) - mu*m*g)/m + psi_dot*y_dot

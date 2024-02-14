@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from robot_base import *
 
 class Ref_Gen(Robot_Base):
@@ -50,25 +51,20 @@ class Ref_Gen(Robot_Base):
             else:
                 t = sim_t[int(delay[i]/dt):int(delay[i+1]/dt+1)]
 
-            # Generate data for a subtrajectory
-            M=np.array([[1, t[0], t[0]**2,   t[0]**3],
-                        [1,t[-1],t[-1]**2,  t[-1]**3],
-                        [0,    1,  2*t[0], 3*t[0]**2],
-                        [0,    1, 2*t[-1],3*t[-1]**2]])
-
-            c_x=np.array([[self.X_waypts[i]], #start pos
-                          [self.X_waypts[i+1] - self.X_dot_waypts[i+1]*dt], #end pos
-                          [self.X_dot_waypts[i]], #start vel 
-                          [self.X_dot_waypts[i+1]]]) #end vel
-            c_y=np.array([[self.Y_waypts[i]],
-                          [self.Y_waypts[i+1] - self.Y_dot_waypts[i+1]*dt],
-                          [self.Y_dot_waypts[i]],
-                          [self.Y_dot_waypts[i+1]]])
-
-
-            a_x = np.matmul(np.linalg.inv(M),c_x)
-            a_y = np.matmul(np.linalg.inv(M),c_y)
-
+            a_x = self.get_cubic_coeff(st = t[0], 
+                                       s_pos = self.X_waypts[i], 
+                                       s_vel = self.X_dot_waypts[i],
+                                       et = t[-1],
+                                       e_pos = self.X_waypts[i+1] - self.X_dot_waypts[i+1]*dt,
+                                       e_vel = self.X_dot_waypts[i+1])
+            
+            a_y = self.get_cubic_coeff(st = t[0], 
+                                       s_pos = self.Y_waypts[i], 
+                                       s_vel = self.Y_dot_waypts[i],
+                                       et = t[-1],
+                                       e_pos = self.Y_waypts[i+1] - self.Y_dot_waypts[i+1]*dt,
+                                       e_vel = self.Y_dot_waypts[i+1])
+            
             # Compute X and Y values
             X_sub = a_x[0, 0]+a_x[1, 0]*t+a_x[2, 0]*t**2+a_x[3, 0]*t**3
             Y_sub = a_y[0, 0]+a_y[1, 0]*t+a_y[2, 0]*t**2+a_y[3, 0]*t**3
@@ -100,16 +96,19 @@ class Ref_Gen(Robot_Base):
         dpsi=psi[1:len(psi)]-psi[0:len(psi)-1]
         psi_ref[0] = psi[0]
         for i in range(1,len(psi_ref)):
-            if dpsi[i-1]<-np.pi:
-                psi_ref[i] = psi_ref[i-1]+(dpsi[i-1]+2*np.pi)
-            elif dpsi[i-1]>np.pi:
-                psi_ref[i] = psi_ref[i-1]+(dpsi[i-1]-2*np.pi)
-            else:
-                psi_ref[i] = psi_ref[i-1]+dpsi[i-1]
-
+            d_psi = dpsi[i - 1]
+            if d_psi < -np.pi:
+                d_psi += 2*np.pi
+            elif d_psi > np.pi:
+                d_psi -= 2*np.pi
+            
+            psi_ref[i] = psi_ref[i-1] + d_psi
 
         x_dot_body= np.cos(psi_ref)*X_dot+np.sin(psi_ref)*Y_dot
         y_dot_body=-np.sin(psi_ref)*X_dot+np.cos(psi_ref)*Y_dot
         y_dot_body= np.round(y_dot_body)
+
+        plt.plot(X, Y, '-r')
+        plt.show()
 
         return x_dot_body, y_dot_body, psi_ref, X, Y            
