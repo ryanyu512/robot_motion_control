@@ -108,7 +108,7 @@ class Ref_Gen(Robot_Base):
         y_dot_body=-np.sin(psi_ref)*X_dot+np.cos(psi_ref)*Y_dot
         y_dot_body= np.round(y_dot_body)
 
-        plt.plot(X, Y, '-r')
-        plt.show()
+        # plt.plot(X, Y, '-r')
+        # plt.show()
 
         return x_dot_body, y_dot_body, psi_ref, X, Y            

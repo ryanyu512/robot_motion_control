@@ -5,7 +5,7 @@ sim_params = {'end_t': 120,
               'dt': 0.02,
               'random_init_Y': True,
               'is_animate': True,
-              'is_save_gif': False}
+              'is_save_gif': True}
 
 robot_params = {}
 
@@ -31,8 +31,8 @@ MPC_params = {'Q': np.array([[100,    0,  0,  0],
               } 
 
 ref_gen_params = {
-              'X_waypts': np.array([ 0, 60, 110, 140, 160, 110, 40, -20,  0]), 
-              'Y_waypts': np.array([40, 20,  20,  60, 100, 140,140,  80, 40]),
+              'X_waypts': np.array([ 0, 60, 110, 140, 160, 110,  40, -20,  0]), #relative to global frame
+              'Y_waypts': np.array([40, 20,  20,  60, 100, 140, 140,  80, 40]), #relative to global frame
               'X_dot_waypts': np.array([2,1,1,1,0,-1,-1, 0,1])*3, #relative to global frame
               'Y_dot_waypts': np.array([0,0,0,1,1, 0, 0,-1,0])*3, #relative to global frame
 }
