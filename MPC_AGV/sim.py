@@ -232,7 +232,7 @@ def sim(sim_params,
 
     anim = FuncAnimation(fig, 
                 update_plot,
-                frames = np.arange(0, sim_steps, 5), 
+                frames = np.arange(0, sim_steps, 20), 
                 init_func = init_func,
                 interval = 1,
                 repeat = False)
